@@ -90,15 +90,8 @@ pre#scriptDisplay .boolean { color: #d84315; }
 pre#scriptDisplay .null { color: #757575; }
 pre#scriptDisplay .key { color: #3f51b5; font-weight: bold; }
 
-#apiCallsDisplay {
-    margin-top: 18px;
-    background: #f4f6fb;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    padding: 10px;
-    font-size: 0.95em;
-    max-height: 220px;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
+pre#apiCallsDisplay .string { color: #388e3c; }
+pre#apiCallsDisplay .number { color: #1976d2; }
+pre#apiCallsDisplay .boolean { color: #d84315; }
+pre#apiCallsDisplay .null { color: #757575; }
+pre#apiCallsDisplay .key { color: #3f51b5; font-weight: bold; }

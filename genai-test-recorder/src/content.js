@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   recordNavigation("navigation-domcontentloaded");
 });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request) => {
   if (request.action === "updateRecordingState") {
     isRecording = request.isRecording;
     if (!isRecording) removeHighlight();
@@ -142,3 +142,37 @@ function getRelativesInfo(element) {
     }))
   };
 }
+
+const script = document.createElement('script');
+script.src = chrome.runtime.getURL('src/intercept.js');
+script.onload = function () {
+  this.remove();
+};
+document.documentElement.appendChild(script);
+
+// Listen for intercepted fetch/xhr messages
+window.addEventListener('message', (event) => {
+
+  if (!event.data || (event.source !== window)) return;
+  const { type, url, method, requestBody, responseBody, status, headers } = event.data;
+
+  if (type === 'INTERCEPTED_FETCH' || type === 'INTERCEPTED_XHR') {
+    const payload = {
+      type,
+      url,
+      method,
+      requestBody,
+      responseBody,
+      status,
+      headers,
+      timestamp: new Date().toISOString(),
+      pageUrl: window.location.href
+    };
+
+    // Example: Store locally or send to background/popup
+    console.log('Captured API call:', payload);
+
+    // Uncomment below to forward to background.js if needed
+       chrome.runtime.sendMessage({ action: 'API_CAPTURED', payload });
+    }
+  });

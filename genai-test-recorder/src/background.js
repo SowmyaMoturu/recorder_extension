@@ -39,11 +39,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             console.log(recordedActions)
             break;
         case "recordAction":
+            console.log("Recording action:", request.payload);
             if (isRecording) {
                 recordedActions.push(request.payload);
             }
             sendResponse({ status: "recorded" });
             break;
+        case "API_CAPTURED":
+            if (isRecording && request.payload) {
+                recordedApiResponses.push(request.payload);
+            }
+        break;
         case "getRecordingState":
             sendResponse({ isRecording });
             break;
@@ -60,8 +66,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case "getRecordedSteps":
             sendResponse({ steps: recordedActions });
             break;
-        case "getRecordedApiCalls":
-            sendResponse({ apiCalls: recordedApiCalls });
+        case "getRecordedApiResponses":
+            sendResponse({ apiResponses: recordedApiResponses });
             break;
         case "debugLog":
             debugLogs.push(`[${new Date().toLocaleTimeString()}] ${request.message}`);
@@ -70,42 +76,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case "getDebugLogs":
             sendResponse({ logs: debugLogs });
             break;
-        case "apiResponseBody":
-            console.log("BG received apiResponseBody:", request); // Add this
-            if (isRecording) {
-                recordedApiResponses.push({
-                    url: request.url,
-                    method: request.method,
-                    status: request.status,
-                    body: request.body,
-                    timeStamp: Date.now()
-                });
-            }
-            break;
         default:
             sendResponse({ status: "unknown action" });
     }
     return true;
 });
 
-
-
-chrome.webRequest.onCompleted.addListener(
-    function (details) {
-        if (!isRecording) return;
-        // Filter for XHR and fetch requests only
-        if (details.type === "xmlhttprequest" || details.type === "fetch") {
-            recordedApiCalls.push({
-                url: details.url,
-                method: details.method,
-                statusCode: details.statusCode,
-                timeStamp: details.timeStamp,
-                type: details.type,
-                initiator: details.initiator,
-                tabId: details.tabId
-            });
-            console.log("API intercepted:", details.url);
-        }
-    },
-    { urls: ["<all_urls>"] }
-);

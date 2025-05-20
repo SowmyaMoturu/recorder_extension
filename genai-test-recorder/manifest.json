@@ -29,10 +29,17 @@
       "all_frames": true
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/intercept.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "host_permissions": [
     "<all_urls>"
   ],
   "action": {
+     "default_title": "UI/API Recorder",
     "default_popup": "src/popup.html",
     "default_icon": {
       "16": "src/icons/icon16.png",

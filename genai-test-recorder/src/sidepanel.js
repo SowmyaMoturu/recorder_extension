@@ -7,8 +7,12 @@ const exportBtn = document.getElementById('export-json');
 const scriptDisplay = document.getElementById('scriptDisplay');
 const configInput = document.getElementById('configPatterns');
 const statusDiv = document.getElementById('status');
-
 let recordedSteps = [];
+
+// Add at the top with your other DOM references and variables
+const apiCallsDisplay = document.getElementById('apiCallsDisplay');
+let apiResponses = [];
+
 
 chrome.runtime.sendMessage({ action: 'getRecordingState' }, (response) => {
     if (response && typeof response.isRecording === "boolean") {
@@ -41,7 +45,7 @@ startBtn.addEventListener('click', () => {
         isRecording = true;
         statusDiv.textContent = "Recording started.";
         recordedSteps = [];
-        recordedApiCalls = [];
+        recordedApiResponses = [];
         scriptDisplay.textContent = "";
         if (typeof apiCallsDisplay !== "undefined") {
             apiCallsDisplay.textContent = "";
@@ -137,17 +141,18 @@ function syntaxHighlight(json) {
 
 fetchRecordedSteps();
 
+
 function fetchRecordedApiResponses(callback) {
-    chrome.runtime.sendMessage({ action: 'getRecordedApiCalls' }, (response) => {
-        if (Array.isArray(response?.apiCalls) && response.apiCalls.length > 0) {
-            recordedApiCalls = response.apiCalls;
+    chrome.runtime.sendMessage({ action: 'getRecordedApiResponses' }, (response) => {
+        if (Array.isArray(response?.apiResponses) && response.apiResponses.length > 0) {
+            apiResponses = response.apiResponses;
             if (typeof apiCallsDisplay !== "undefined") {
-                apiCallsDisplay.innerHTML = syntaxHighlight(response.apiCalls);
+                apiCallsDisplay.innerHTML = syntaxHighlight(response.apiResponses);
             }
         } else {
-            recordedApiCalls = [];
+            apiResponses = [];
             if (typeof apiCallsDisplay !== "undefined") {
-                apiCallsDisplay.textContent = "No API calls recorded.";
+                apiCallsDisplay.textContent = "No API Responses recorded";
             }
         }
         if (callback) callback();
