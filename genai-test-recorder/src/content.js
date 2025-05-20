@@ -154,9 +154,11 @@ function recordNavigation(eventType, extra = {}) {
 window.addEventListener("popstate", () => recordNavigation("navigation-popstate"));
 window.addEventListener("hashchange", () => recordNavigation("navigation-hashchange"));
 window.addEventListener("beforeunload", () => recordNavigation("navigation-beforeunload"));
+
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) recordNavigation("navigation-pageshow-backforward");
 });
+
 document.addEventListener("DOMContentLoaded", () => {
   recordNavigation("navigation-domcontentloaded");
 });
@@ -255,10 +257,9 @@ window.addEventListener('message', (event) => {
       pageUrl: window.location.href
     };
 
-    // Example: Store locally or send to background/popup
     console.log('Captured API call:', payload);
 
-    // Uncomment below to forward to background.js if needed
-       chrome.runtime.sendMessage({ action: 'API_CAPTURED', payload });
+    chrome.runtime.sendMessage({ action: 'apiCaptured', payload });
+    
     }
   });

@@ -1,0 +1,25 @@
+{
+  "name": "recorder-extension",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SowmyaMoturu/recorder_extension.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SowmyaMoturu/recorder_extension/issues"
+  },
+  "homepage": "https://github.com/SowmyaMoturu/recorder_extension#readme",
+  "description": "",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "fs": "^0.0.1-security"
+  }
+}
