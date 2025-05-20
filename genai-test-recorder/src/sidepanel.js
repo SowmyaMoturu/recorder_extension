@@ -5,7 +5,7 @@ const startBtn = document.getElementById('start-recording');
 const stopBtn = document.getElementById('stop-recording');
 const exportBtn = document.getElementById('export-json');
 const scriptDisplay = document.getElementById('scriptDisplay');
-const configInput = document.getElementById('configPatterns');
+
 const statusDiv = document.getElementById('status');
 let recordedSteps = [];
 
@@ -30,17 +30,15 @@ function updateButtons() {
     exportBtn.disabled = recordedSteps.length === 0;
 }
 
-// Save config and send to background
-function saveConfig() {
-    if (configInput) {
-        const patterns = configInput.value.split('\n').map(p => p.trim()).filter(Boolean);
-        chrome.runtime.sendMessage({ action: 'updateConfig', patterns });
-    }
-}
+
 
 // Start recording
 startBtn.addEventListener('click', () => {
-    saveConfig();
+    isRecording = true;
+    window.recordedSteps = [];
+    window.apiResponses = [];
+    scriptDisplay.textContent = "";
+    apiCallsDisplay.textContent = "";
     chrome.runtime.sendMessage({ action: 'startRecording' }, () => {
         isRecording = true;
         statusDiv.textContent = "Recording started.";
@@ -94,18 +92,14 @@ stopBtn.addEventListener('click', () => {
 });
 
 
-// On popup load, get initial recording state, config, and steps
+// On popup load, get initial recording state,  and steps
 chrome.runtime.sendMessage({ action: 'getRecordingState' }, (response) => {
     if (response && typeof response.isRecording === "boolean") {
         isRecording = response.isRecording;
         updateButtons();
     }
 });
-chrome.runtime.sendMessage({ action: 'getConfig' }, (response) => {
-    if (response && Array.isArray(response.patterns) && configInput) {
-        configInput.value = response.patterns.join('\n');
-    }
-});
+
 
 
 // Listen for messages from background (optional, for live updates)

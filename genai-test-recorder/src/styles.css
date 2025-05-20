@@ -51,17 +51,6 @@ button:hover:not(:disabled) {
     min-height: 20px;
 }
 
-textarea#configPatterns {
-    width: 100%;
-    min-height: 48px;
-    margin: 10px 0 16px 0;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    padding: 8px;
-    font-size: 1em;
-    resize: vertical;
-    background: #f4f6fb;
-}
 
 h2 {
     font-size: 1.1em;

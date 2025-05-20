@@ -1,6 +1,7 @@
 
 let isRecording = false;
 let lastHighlightedElement = null;
+let lastRecordedUrl = window.location.href;
 
 function highlightElement(element) {
   removeHighlight();
@@ -43,11 +44,96 @@ function sendDebugLog(message) {
   chrome.runtime.sendMessage({ action: "debugLog", message });
 }
 
+function isInteractable(node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+  const tag = node.tagName.toLowerCase();
+  if (["button", "input", "select", "textarea"].includes(tag)) return true;
+  if (tag === "a" && node.hasAttribute("href")) return true;
+  if (node.hasAttribute("tabindex") && node.getAttribute("tabindex") !== "-1") return true;
+  if (node.hasAttribute("role")) {
+    const role = node.getAttribute("role");
+    if (["button", "link", "checkbox", "radio", "textbox", "switch", "menuitem"].includes(role)) return true;
+  }
+  return false;
+}
+
+function getLabel(node) {
+  // aria-label
+  if (node.getAttribute("aria-label")) return node.getAttribute("aria-label");
+  // placeholder
+  if (node.getAttribute("placeholder")) return node.getAttribute("placeholder");
+  // <label for="id">
+  if (node.labels && node.labels.length > 0) return node.labels[0].innerText;
+  if (node.id) {
+    const label = document.querySelector(`label[for="${node.id}"]`);
+    if (label) return label.innerText;
+  }
+  // Previous sibling (common in some UIs)
+  let prev = node.previousElementSibling;
+  if (prev && prev.tagName.toLowerCase() === "label") {
+    return prev.innerText;
+  }
+  // Parent label (e.g., <label><input ...>Text</label>)
+  if (node.parentElement && node.parentElement.tagName.toLowerCase() === "label") {
+    return node.parentElement.innerText.replace(node.value || "", "").trim();
+  }
+  // Parent text node (sometimes label is just before input)
+  if (node.parentElement) {
+    const parentText = node.parentElement.innerText || node.parentElement.textContent;
+    if (parentText && parentText.length < 100) return parentText.trim();
+  }
+  // Fallback to innerText
+  return node.innerText || node.textContent || "";
+}
+
+function crawlDOMInteractables(node) {
+  let results = [];
+  if (isInteractable(node)) {
+    results.push({
+      tag: node.tagName,
+      type: node.type || null,
+      id: node.id || null,
+      name: node.name || null,
+      class: node.className || null,
+      "data-testid": node.getAttribute("data-testid") || null,
+      placeholder: node.getAttribute("placeholder") || null,
+      ariaLabel: node.getAttribute("aria-label") || null,
+      label: getLabel(node),
+      innerText: (node.innerText || node.textContent || "").trim(),
+      value: node.value !== undefined ? node.value : null,
+      xpath: generateXPath(node),
+      cssSelector: generateSelector(node)
+    });
+  }
+  // Recursively check children
+  for (let child of node.children) {
+    results = results.concat(crawlDOMInteractables(child));
+  }
+  return results;
+}
+
 function handleEvent(event) {
   if (!isRecording) return;
   highlightElement(event.target);
   const payload = buildPayload(event.type, event.target);
+  // Detect navigation (full page reload or SPA navigation)
+  let navigation = null;
+  if (window.location.href !== lastRecordedUrl) {
+    navigation = {
+      from: lastRecordedUrl,
+      to: window.location.href,
+      timestamp: Date.now()
+    };
+    lastRecordedUrl = window.location.href;
+  }
+
+  // Attach navigation info if navigation occurred
+  if (navigation) {
+    payload.navigation = navigation;
+  }
+  payload.domSnapshot = crawlDOMInteractables(document.body);
   chrome.runtime.sendMessage({ action: "recordAction", payload });
+ 
 }
 
 ["click", "input", "change", "keydown", "keyup", "focus", "blur", "submit"].forEach(eventType => {

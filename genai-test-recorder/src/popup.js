@@ -1,20 +1,14 @@
-// Minimal popup.js for three fields: start-recording, open-sidepanel, configPatterns
+// Minimal popup.js for three fields: start-recording, open-sidepanel
 
 const startBtn = document.getElementById('start-recording');
 const openSidePanelBtn = document.getElementById('open-sidepanel');
-const configInput = document.getElementById('configPatterns');
 
-// Save config patterns to background
-function saveConfig() {
-    if (configInput) {
-        const patterns = configInput.value.split('\n').map(p => p.trim()).filter(Boolean);
-        chrome.runtime.sendMessage({ action: 'updateConfig', patterns });
-    }
-}
 
-// Start Recording: save config, start recording, open side panel, close popup
+
+// Start Recording: save start recording, open side panel, close popup
 startBtn.addEventListener('click', () => {
-    saveConfig();
+    window.recordedSteps = [];
+    window.apiResponses = [];
     chrome.runtime.sendMessage({ action: 'startRecording' }, () => {
         chrome.windows.getCurrent({}, (win) => {
             if (win && win.id !== undefined && win.id !== chrome.windows.WINDOW_ID_NONE) {
@@ -41,10 +35,3 @@ if (openSidePanelBtn && chrome.sidePanel) {
         });
     });
 }
-
-// On popup load, fetch config patterns and display in textarea
-chrome.runtime.sendMessage({ action: 'getConfig' }, (response) => {
-    if (response && Array.isArray(response.patterns) && configInput) {
-        configInput.value = response.patterns.join('\n');
-    }
-});

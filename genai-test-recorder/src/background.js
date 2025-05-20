@@ -2,7 +2,6 @@ let isRecording = false;
 let recordedActions = [];
 let recordedApiResponses = [];
 let debugLogs = [];
-let configPatterns = ["*://your-api-domain.com/*"]; // Default
 let recordedApiCalls = [];
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -14,7 +13,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case "startRecording":
             isRecording = true;
             recordedActions = [];
-            recordedApiCalls = [];
+            recordedApiResponses = [];
             chrome.tabs.query({}, (tabs) => {
                 for (const tab of tabs) {
                     if (tab.id) {
@@ -40,7 +39,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             break;
         case "recordAction":
             console.log("Recording action:", request.payload);
-            if (isRecording) {
+            if (isRecording) {  
                 recordedActions.push(request.payload);
             }
             sendResponse({ status: "recorded" });
@@ -52,13 +51,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
         case "getRecordingState":
             sendResponse({ isRecording });
-            break;
-        case "updateConfig":
-            configPatterns = Array.isArray(request.patterns) && request.patterns.length ? request.patterns : configPatterns;
-            sendResponse({ status: "updated", patterns: configPatterns });
-            break;
-        case "getConfig":
-            sendResponse({ patterns: configPatterns });
             break;
         case "getExportData":
             sendResponse({ steps: recordedActions, apiCalls: recordedApiCalls });
