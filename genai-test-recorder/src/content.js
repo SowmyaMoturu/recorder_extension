@@ -1,8 +1,12 @@
-
 let isRecording = false;
 let lastHighlightedElement = null;
 let lastRecordedUrl = window.location.href;
+let lastDomHash = '';
 
+const recentNetworkEvents = [];
+let observer = null;
+
+// --- DOM Highlighting ---
 function highlightElement(element) {
   removeHighlight();
   if (element && element.style) {
@@ -20,8 +24,19 @@ function removeHighlight() {
   }
 }
 
+
+// --- DOM Hashing for Change Detection ---
+function getDomHash() {
+  // Simple hash: can be replaced with a better hash if needed
+  return document.body.innerHTML.length + ':' + document.body.childElementCount;
+}
+
+function getFullDomSnapshot(){
+  return document.body.innerHTML;
+}
+
+// --- Payload Construction ---
 function buildPayload(eventType, target) {
-  console.log("Building payload for event: " + eventType);
   return {
     eventType,
     tagName: target.tagName,
@@ -39,143 +54,6 @@ function buildPayload(eventType, target) {
     url: window.location.href
   };
 }
-
-function sendDebugLog(message) {
-  chrome.runtime.sendMessage({ action: "debugLog", message });
-}
-
-function isInteractable(node) {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
-  const tag = node.tagName.toLowerCase();
-  if (["button", "input", "select", "textarea"].includes(tag)) return true;
-  if (tag === "a" && node.hasAttribute("href")) return true;
-  if (node.hasAttribute("tabindex") && node.getAttribute("tabindex") !== "-1") return true;
-  if (node.hasAttribute("role")) {
-    const role = node.getAttribute("role");
-    if (["button", "link", "checkbox", "radio", "textbox", "switch", "menuitem"].includes(role)) return true;
-  }
-  return false;
-}
-
-function getLabel(node) {
-  // aria-label
-  if (node.getAttribute("aria-label")) return node.getAttribute("aria-label");
-  // placeholder
-  if (node.getAttribute("placeholder")) return node.getAttribute("placeholder");
-  // <label for="id">
-  if (node.labels && node.labels.length > 0) return node.labels[0].innerText;
-  if (node.id) {
-    const label = document.querySelector(`label[for="${node.id}"]`);
-    if (label) return label.innerText;
-  }
-  // Previous sibling (common in some UIs)
-  let prev = node.previousElementSibling;
-  if (prev && prev.tagName.toLowerCase() === "label") {
-    return prev.innerText;
-  }
-  // Parent label (e.g., <label><input ...>Text</label>)
-  if (node.parentElement && node.parentElement.tagName.toLowerCase() === "label") {
-    return node.parentElement.innerText.replace(node.value || "", "").trim();
-  }
-  // Parent text node (sometimes label is just before input)
-  if (node.parentElement) {
-    const parentText = node.parentElement.innerText || node.parentElement.textContent;
-    if (parentText && parentText.length < 100) return parentText.trim();
-  }
-  // Fallback to innerText
-  return node.innerText || node.textContent || "";
-}
-
-function crawlDOMInteractables(node) {
-  let results = [];
-  if (isInteractable(node)) {
-    results.push({
-      tag: node.tagName,
-      type: node.type || null,
-      id: node.id || null,
-      name: node.name || null,
-      class: node.className || null,
-      "data-testid": node.getAttribute("data-testid") || null,
-      placeholder: node.getAttribute("placeholder") || null,
-      ariaLabel: node.getAttribute("aria-label") || null,
-      label: getLabel(node),
-      innerText: (node.innerText || node.textContent || "").trim(),
-      value: node.value !== undefined ? node.value : null,
-      xpath: generateXPath(node),
-      cssSelector: generateSelector(node)
-    });
-  }
-  // Recursively check children
-  for (let child of node.children) {
-    results = results.concat(crawlDOMInteractables(child));
-  }
-  return results;
-}
-
-function handleEvent(event) {
-  if (!isRecording) return;
-  highlightElement(event.target);
-  const payload = buildPayload(event.type, event.target);
-  // Detect navigation (full page reload or SPA navigation)
-  let navigation = null;
-  if (window.location.href !== lastRecordedUrl) {
-    navigation = {
-      from: lastRecordedUrl,
-      to: window.location.href,
-      timestamp: Date.now()
-    };
-    lastRecordedUrl = window.location.href;
-  }
-
-  // Attach navigation info if navigation occurred
-  if (navigation) {
-    payload.navigation = navigation;
-  }
-  payload.domSnapshot = crawlDOMInteractables(document.body);
-  chrome.runtime.sendMessage({ action: "recordAction", payload });
- 
-}
-
-["click", "input", "change", "keydown", "keyup", "focus", "blur", "submit"].forEach(eventType => {
-  document.addEventListener(eventType, handleEvent, true);
-});
-
-function recordNavigation(eventType, extra = {}) {
-  if (!isRecording) return;
-  const payload = {
-    eventType,
-    url: window.location.href,
-    timestamp: Date.now(),
-    ...extra
-  };
-  chrome.runtime.sendMessage({ action: "recordAction", payload });
-}
-
-window.addEventListener("popstate", () => recordNavigation("navigation-popstate"));
-window.addEventListener("hashchange", () => recordNavigation("navigation-hashchange"));
-window.addEventListener("beforeunload", () => recordNavigation("navigation-beforeunload"));
-
-window.addEventListener("pageshow", (e) => {
-  if (e.persisted) recordNavigation("navigation-pageshow-backforward");
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  recordNavigation("navigation-domcontentloaded");
-});
-
-chrome.runtime.onMessage.addListener((request) => {
-  if (request.action === "updateRecordingState") {
-    isRecording = request.isRecording;
-    if (!isRecording) removeHighlight();
-  }
-});
-
-chrome.runtime.sendMessage({ action: "getRecordingState" }, (response) => {
-  if (response && typeof response.isRecording === "boolean") {
-    isRecording = response.isRecording;
-    if (!isRecording) removeHighlight();
-  }
-});
 
 function getAttributes(el) {
   const attrs = {};
@@ -231,19 +109,106 @@ function getRelativesInfo(element) {
   };
 }
 
+
+// --- User Event Handler ---
+function handleEvent(event) {
+  if (!isRecording) return;
+  highlightElement(event.target);
+
+  // If page URL changed since last event, record navigation and attach to main event
+  if (window.location.href !== lastRecordedUrl) {
+    const prevUrl = lastRecordedUrl;
+    lastRecordedUrl = window.location.href;
+    recordNavigation("navigation-urlchange", { from: prevUrl, to: window.location.href });
+  }
+
+  // Build and send main user event payload
+  const payload = buildPayload(event.type, event.target);
+  chrome.runtime.sendMessage({ action: "recordAction", payload });
+}
+
+// --- Navigation Event Handler ---
+function recordNavigation(eventType, extra = {}) {
+  if (!isRecording) return;
+  const domSnapshot = getFullDomSnapshot()
+  lastDomHash = getDomHash();
+  if(domSnapshot === lastDomHash) return; // Skip if no change detected
+  const payload = {
+    eventType,
+    url: window.location.href,
+    timestamp: Date.now(),
+    domSnapshot,
+    ...extra
+  };
+  chrome.runtime.sendMessage({ action: "recordAction", payload });
+}
+
+// --- Robust MutationObserver Setup ---
+function setupObserver() {
+  if (observer) observer.disconnect();
+  if (!document.body) {
+    setTimeout(setupObserver, 50);
+    return;
+  }
+  observer = new MutationObserver(() => {
+    lastDomHash = getDomHash();
+  });
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+}
+
+// --- Event Listeners ---
+[
+  "mousedown", "mouseup", "dblclick", "contextmenu",
+  "touchstart", "touchend", "dragstart", "drop", "scroll", "wheel"
+].forEach(eventType => {
+  document.addEventListener(eventType, handleEvent, true);
+});
+
+window.addEventListener("popstate", () => {
+  setupObserver();
+  recordNavigation("navigation-popstate");
+});
+window.addEventListener("hashchange", () => {
+  setupObserver();
+  recordNavigation("navigation-hashchange");
+});
+window.addEventListener("beforeunload", () => recordNavigation("navigation-beforeunload"));
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) {
+    setupObserver();
+    recordNavigation("navigation-pageshow-backforward");
+  }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  setupObserver();
+  recordNavigation("navigation-domcontentloaded");
+});
+
+// --- Recording State Sync ---
+chrome.runtime.onMessage.addListener((request) => {
+  if (request.action === "updateRecordingState") {
+    isRecording = request.isRecording;
+    if (!isRecording) removeHighlight();
+  }
+});
+chrome.runtime.sendMessage({ action: "getRecordingState" }, (response) => {
+  if (response && typeof response.isRecording === "boolean") {
+    isRecording = response.isRecording;
+    if (!isRecording) removeHighlight();
+  }
+});
+
+// --- Inject API Interceptor ---
 const script = document.createElement('script');
 script.src = chrome.runtime.getURL('src/intercept.js');
-script.onload = function () {
-  this.remove();
-};
+script.onload = function () { this.remove(); };
 document.documentElement.appendChild(script);
 
-// Listen for intercepted fetch/xhr messages
+// --- Listen for Intercepted API Calls ---
 window.addEventListener('message', (event) => {
-
   if (!event.data || (event.source !== window)) return;
   const { type, url, method, requestBody, responseBody, status, headers } = event.data;
-
   if (type === 'INTERCEPTED_FETCH' || type === 'INTERCEPTED_XHR') {
     const payload = {
       type,
@@ -256,10 +221,6 @@ window.addEventListener('message', (event) => {
       timestamp: new Date().toISOString(),
       pageUrl: window.location.href
     };
-
-    console.log('Captured API call:', payload);
-
     chrome.runtime.sendMessage({ action: 'apiCaptured', payload });
-    
-    }
-  });
+  }
+});

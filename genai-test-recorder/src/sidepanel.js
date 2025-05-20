@@ -55,7 +55,11 @@ startBtn.addEventListener('click', () => {
 
 // Export as JSON
 exportBtn.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(recordedSteps, null, 2)], { type: "application/json" });
+    const exportData = {
+        steps: recordedSteps,
+        apiResponses: apiResponses
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

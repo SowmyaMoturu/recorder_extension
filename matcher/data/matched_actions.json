@@ -1,0 +1,17 @@
+[
+  {
+    "step": "Given I am on https://www.demoblaze.com/ page",
+    "matched_actions": [0],
+    "explanation": "Matched a 'navigation-domcontentloaded' event with URL 'https://www.demoblaze.com/index.html', which corresponds to the expected landing page."
+  },
+  {
+    "step": "When I add product “Samsung galaxy s6” to cart",
+    "matched_actions": [3],
+    "explanation": "Matched a 'click' event on an anchor element with text 'Add to cart', indicating the user interaction to add the product to the cart on the product detail page."
+  },
+  {
+    "step": "Then I should see a successful alert message",
+    "matched_actions": [],
+    "explanation": "No alert, modal, or DOM mutation events were recorded to confirm a success message. To capture this behavior, consider recording alert dialogs, confirmation modals, or monitoring DOM mutations or network responses triggered after the 'Add to cart' click."
+  }
+]
