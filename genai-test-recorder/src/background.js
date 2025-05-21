@@ -19,12 +19,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 for (const tab of tabs) {
                     if (tab.id) {
                         chrome.tabs.sendMessage(tab.id, { action: "updateRecordingState", isRecording: true });
+                        injectEventCaptureListeners(tab.id); // <-- Inject event listeners here
                     }
                 }
             });
             console.log("Recording started.");
             sendResponse({ status: "started" });
             break;
+
         case "stopRecording":
             isRecording = false;
             chrome.tabs.query({}, (tabs) => {
@@ -36,42 +38,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
             console.log("Recording stopped.");
             sendResponse({ status: "stopped" });
-            console.log(recordedActions)
+            console.log(recordedActions);
             break;
+
         case "recordAction":
             if (isRecording) {
                 recordedActions.push(request.payload);
             }
             sendResponse({ status: "recorded" });
             break;
+
         case "getRecordingState":
             sendResponse({ isRecording });
             break;
+
         case "updateConfig":
             configPatterns = Array.isArray(request.patterns) && request.patterns.length ? request.patterns : configPatterns;
             sendResponse({ status: "updated", patterns: configPatterns });
             break;
+
         case "getConfig":
             sendResponse({ patterns: configPatterns });
             break;
+
         case "getExportData":
             sendResponse({ steps: recordedActions, apiCalls: recordedApiCalls });
             break;
+
         case "getRecordedSteps":
             sendResponse({ steps: recordedActions });
             break;
+
         case "getRecordedApiCalls":
             sendResponse({ apiCalls: recordedApiCalls });
             break;
+
         case "debugLog":
             debugLogs.push(`[${new Date().toLocaleTimeString()}] ${request.message}`);
             if (debugLogs.length > 200) debugLogs.shift();
             break;
+
         case "getDebugLogs":
             sendResponse({ logs: debugLogs });
             break;
+
         case "apiResponseBody":
-            console.log("BG received apiResponseBody:", request); // Add this
             if (isRecording) {
                 recordedApiResponses.push({
                     url: request.url,
@@ -82,18 +93,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
             }
             break;
+
         default:
             sendResponse({ status: "unknown action" });
     }
     return true;
 });
 
-
-
 chrome.webRequest.onCompleted.addListener(
     function (details) {
         if (!isRecording) return;
-        // Filter for XHR and fetch requests only
+
         if (details.type === "xmlhttprequest" || details.type === "fetch") {
             recordedApiCalls.push({
                 url: details.url,
@@ -109,3 +119,53 @@ chrome.webRequest.onCompleted.addListener(
     },
     { urls: ["<all_urls>"] }
 );
+
+// Injects UI event listeners into the active tab
+function injectEventCaptureListeners(tabId) {
+    chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+            console.log("Injected UI event listeners");
+
+            document.addEventListener('click', (event) => {
+                window.postMessage({
+                    type: 'GENAI_EVENT',
+                    eventType: 'click',
+                    tag: event.target.tagName,
+                    class: event.target.className,
+                    id: event.target.id,
+                    name: event.target.name,
+                    value: event.target.value || event.target.innerText
+                }, '*');
+            }, true);
+
+            document.addEventListener('input', (event) => {
+                if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+                    window.postMessage({
+                        type: 'GENAI_EVENT',
+                        eventType: 'input',
+                        tag: event.target.tagName,
+                        class: event.target.className,
+                        id: event.target.id,
+                        name: event.target.name,
+                        value: event.target.value
+                    }, '*');
+                }
+            }, true);
+
+            document.addEventListener('change', (event) => {
+                if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) {
+                    window.postMessage({
+                        type: 'GENAI_EVENT',
+                        eventType: 'change',
+                        tag: event.target.tagName,
+                        class: event.target.className,
+                        id: event.target.id,
+                        name: event.target.name,
+                        value: event.target.value
+                    }, '*');
+                }
+            }, true);
+        }
+    });
+}
