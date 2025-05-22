@@ -1,0 +1,17 @@
+import yaml
+
+def build_query(node):
+    query = f"({node['type']}"
+    if 'children' in node:
+        for child in node['children']:
+            query += " " + build_query(child)
+    query += ")"
+    return query
+
+# Load YAML
+with open("query.yaml", "r") as f:
+    data = yaml.safe_load(f)
+
+# Build Tree-sitter query
+query_string = build_query(data['query'])
+print(query_string)
