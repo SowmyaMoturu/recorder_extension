@@ -1,0 +1,43 @@
+const fs = require('fs');
+const parser = require('@babel/parser');
+const traverse = require('@babel/traverse').default;
+const t = require('@babel/types');
+
+function parseJS(filePath) {
+  const code = fs.readFileSync(filePath, 'utf8');
+  const ast = parser.parse(code, {
+    sourceType: 'module',
+    plugins: ['typescript', 'classProperties']
+  });
+
+  const methods = [];
+  const calls = [];
+
+  traverse(ast, {
+    ClassMethod(path) {
+      methods.push({
+        name: path.node.key.name,
+        class: path.findParent(p => p.isClassDeclaration()).node.id.name
+      });
+
+      // Extract calls inside methods
+      path.traverse({
+        CallExpression(callPath) {
+          const callee = callPath.node.callee;
+          if (t.isMemberExpression(callee)) {
+            calls.push({
+              caller: path.node.key.name,
+              called: `${callee.object.name}.${callee.property.name}`,
+              location: filePath
+            });
+          }
+        }
+      });
+    }
+  });
+
+  return { file: filePath, methods, calls };
+}
+
+// Example usage
+console.log(parseJS('pages/LoginPage.js'));
