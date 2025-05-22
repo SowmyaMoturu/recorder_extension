@@ -1,0 +1,61 @@
+import json
+import subprocess
+from gherkin_parser import parse_gherkin
+
+def run_js_parser(file_path):
+    result = subprocess.run(
+        ['node', 'js_parser.js', file_path],
+        capture_output=True, text=True
+    )
+    return json.loads(result.stdout)
+
+def build_call_graph(feature_dir, js_files):
+    # Parse Gherkin
+    features = []
+    for file in os.listdir(feature_dir):
+        if file.endswith('.feature'):
+            features.append(parse_gherkin(f"{feature_dir}/{file}"))
+
+    # Parse JS/TS
+    js_data = [run_js_parser(f) for f in js_files]
+
+    # Load step mappings
+    with open('step_mappings.json') as f:
+        step_mappings = json.load(f)
+
+    # Build graph
+    graph = {
+        "scenarios": [],
+        "methods": {}
+    }
+
+    for feature in features:
+        scenario = {
+            "file": feature["file"],
+            "steps": []
+        }
+        for step in feature["scenarios"]:
+            mapped_method = step_mappings.get(step, "")
+            scenario["steps"].append({
+                "step": step,
+                "method": mapped_method
+            })
+        graph["scenarios"].append(scenario)
+
+    for js in js_data:
+        for method in js["methods"]:
+            method_name = f"{method['class']}.{method['name']}"
+            graph["methods"][method_name] = {
+                "calls": [c['called'] for c in js['calls'] if c['caller'] == method['name']],
+                "file": js["file"]
+            }
+
+    return graph
+
+# Run
+graph = build_call_graph(
+    feature_dir="features",
+    js_files=["pages/LoginPage.js", "tests/login.spec.js"]
+)
+with open('call_graph.json', 'w') as f:
+    json.dump(graph, f, indent=2)
