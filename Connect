@@ -1,0 +1,4 @@
+{
+  "Given I am on the login page": "LoginPage.navigateToLogin",
+  "When I enter valid credentials": "LoginPage.enterCredentials"
+}
