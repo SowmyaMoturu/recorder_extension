@@ -1,0 +1,33 @@
+from tree_sitter import Parser, Language
+import os
+
+# Build Gherkin parser (run once)
+GHERKIN_LANGUAGE = Language.build_library(
+  'build/tree-sitter-languages.so',
+  ['tree-sitter-gherkin']
+)
+
+def parse_gherkin(file_path):
+    parser = Parser()
+    parser.set_language(GHERKIN_LANGUAGE)
+    
+    with open(file_path, 'r') as f:
+        code = f.read()
+    
+    tree = parser.parse(bytes(code, 'utf8'))
+    query = GHERKIN_LANGUAGE.query("""
+      (scenario) @scenario
+      (step) @step
+    """)
+    
+    steps = []
+    for node, _ in query.captures(tree.root_node):
+        steps.append(node.text.decode('utf8').strip())
+    
+    return {
+        "file": file_path,
+        "scenarios": steps
+    }
+
+# Example usage
+print(parse_gherkin("features/login.feature"))
