@@ -1,0 +1,19 @@
+{
+  "scenarios": [
+    {
+      "file": "features/login.feature",
+      "steps": [
+        {
+          "step": "Given I am on the login page",
+          "method": "LoginPage.navigateToLogin"
+        }
+      ]
+    }
+  ],
+  "methods": {
+    "LoginPage.enterCredentials": {
+      "calls": ["this.username.fill", "this.page.click"],
+      "file": "pages/LoginPage.js"
+    }
+  }
+}
